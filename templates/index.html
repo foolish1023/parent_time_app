@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ja" class="scroll-smooth">
+<head>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='favicon.png') }}">
+<meta property="og:image" content="{{ url_for('static', filename='favicon.png') }}">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>人生の時間シミュレーター</title>
+
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        .fade-in {
+            animation: fadeIn 0.8s ease-out forwards;
+            opacity: 0;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .count { opacity: 0; }
+
+        .person-card {
+            animation: cardIn 0.25s ease-out;
+            transform-origin: top;
+        }
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(6px) scale(0.99); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .person-remove {
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .person-remove.removing {
+            opacity: 0;
+            transform: translateY(-4px);
+        }
+    </style>
+</head>
+
+<body class="bg-[#f5f5f7] text-black antialiased">
+
+<div class="max-w-3xl mx-auto px-6 py-10">
+
+    <!-- Header -->
+    <header class="text-center fade-in">
+        <h1 class="text-4xl font-bold tracking-tight mb-1">人生の時間シミュレーター</h1>
+        <p class="text-gray-500">あなたと親、そして大切な人との残り時間を見える化する</p>
+    </header>
+
+    {% if error %}
+    <div class="mt-6 bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-4 rounded fade-in">
+        エラー: {{ error }}
+    </div>
+    {% endif %}
+
+    {% if not result %}
+
+    <!-- 入力フォーム -->
+    <form method="POST" id="simForm"
+          class="bg-white mt-10 p-8 shadow-sm rounded-xl fade-in space-y-8">
+
+        <!-- 自分の情報 -->
+        <section class="space-y-4">
+            <h2 class="text-xl font-semibold">あなたの情報</h2>
+
+            <!-- 生年月日 -->
+            <div>
+                <label class="font-semibold">生年月日</label>
+                <div class="grid grid-cols-3 gap-3 mt-2">
+                    <select id="year" name="year" required class="border rounded px-3 py-2"></select>
+                    <select id="month" name="month" required class="border rounded px-3 py-2"></select>
+                    <select id="day" name="day" required class="border rounded px-3 py-2"></select>
+                </div>
+                <input type="hidden" name="my_birthdate" id="my_birthdate" />
+            </div>
+
+            <!-- 性別 -->
+            <div>
+                <label class="font-semibold">性別</label>
+                <select name="my_gender" required
+                        class="border rounded px-3 py-2 w-full">
+                    <option value="">選択してください</option>
+                    <option value="male" selected>男性</option>
+                    <option value="female">女性</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- 親の情報 -->
+        <section class="space-y-4">
+            <h2 class="text-xl font-semibold">親の情報</h2>
+
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <label class="font-semibold">親の現在年齢</label>
+                    <input type="number" name="parent_age" value="60" required
+                           class="border rounded px-3 py-2 w-full" />
+                </div>
+
+                <div>
+                    <label class="font-semibold">親の性別</label>
+                    <select name="parent_gender" required
+                            class="border rounded px-3 py-2 w-full">
+                        <option value="">選択してください</option>
+                        <option value="male">男性</option>
+                        <option value="female">女性</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-6">
+                <div>
+                    <label class="font-semibold">年の帰省回数</label>
+                    <input type="number" name="visits" value="4" required
+                           class="border rounded px-3 py-2 w-full"/>
+                </div>
+
+                <div>
+                    <label class="font-semibold">1回の滞在日数</label>
+                    <input type="number" name="stay" value="5" required
+                           class="border rounded px-3 py-2 w-full"/>
+                </div>
+
+                <div>
+                    <label class="font-semibold">1日の平均会話時間（h）</label>
+                    <input type="number" step="0.5" name="hours" value="3" required
+                           class="border rounded px-3 py-2 w-full"/>
+                </div>
+            </div>
+        </section>
+
+        <!-- 大切な人の設定 -->
+        <section class="space-y-4">
+            <h2 class="text-xl font-semibold">大切な人たち</h2>
+            <p class="text-sm text-gray-500">
+                子ども・パートナー・友人・兄弟・推しなど、名前を入れて時間をシミュレーションできます。
+            </p>
+
+            <div id="personsContainer" class="space-y-4"></div>
+
+            <button type="button" id="addPersonBtn"
+                class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800">
+                <span class="text-lg leading-none">＋</span> 相手を追加
+            </button>
+        </section>
+
+        <button type="submit"
+            class="w-full mt-4 bg-black text-white py-3 rounded-lg font-semibold hover:bg-gray-800">
+            計算する
+        </button>
+    </form>
+
+    <!-- 名言 -->
+    <div class="text-center text-xl mt-10 text-gray-700 fade-in">
+        {{ quote }}
+    </div>
+
+    {% else %}
+
+    <!-- 結果画面 -->
+    <div class="text-center text-2xl font-semibold mt-10 fade-in text-gray-800">
+        {{ quote }}
+    </div>
+
+    <section class="mt-10 bg-white p-8 shadow-sm rounded-xl space-y-10 fade-in">
+
+        <!-- あなたの人生 -->
+        <div>
+            <h2 class="text-2xl font-bold mb-4">あなたの人生</h2>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-6">
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">現在の年齢</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.my_age }}">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">平均寿命</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.my_life_expectancy }}">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">残り年数</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.my_life_left }}">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">残り日数</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.my_days_left }}">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 親の人生 -->
+        <div>
+            <h2 class="text-2xl font-bold mb-4">親の人生</h2>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-6">
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">現在年齢</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.parent_age }}">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">平均寿命</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.parent_life_expectancy }}">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">残り年数</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.parent_life_left }}">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">残り日数</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.parent_days_left }}">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 親と会える時間 -->
+        <div class="p-6 bg-gray-50 rounded-xl">
+            <h3 class="text-xl font-bold mb-4">親と会える残り時間</h3>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">残り年数</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.time_together_years }}">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">会える日数</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.time_together_days }}">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">会話できる時間</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.time_together_hours }}">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 大切な人たちとの時間 -->
+        {% if result.relations and result.relations|length > 0 %}
+        <div class="p-6 bg-gray-50 rounded-xl space-y-6">
+            <h3 class="text-xl font-bold">大切な人たちとの残り時間</h3>
+
+            <!-- 合計 -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">残り年数（合計）</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.relations_total_years | int }}">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">残り日数（合計）</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.relations_total_days | int }}">0</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-sm text-gray-500">残り時間（合計）</div>
+                    <div class="text-4xl font-bold count"
+                         data-value="{{ result.relations_total_hours | int }}">0</div>
+                </div>
+            </div>
+
+            <!-- 個別 -->
+            <div class="space-y-3">
+                {% for r in result.relations %}
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between bg-white rounded-lg px-4 py-3">
+                    <div class="font-semibold">
+                        {{ r.name }}（{{ r.age }}歳）
+                    </div>
+                    <div class="text-sm text-gray-600 flex flex-wrap gap-x-4 gap-y-1 mt-1 sm:mt-0">
+                        <span>残り {{ r.years }} 年</span>
+                        <span>約 {{ r.days | int }} 日</span>
+                        <span>約 {{ r.hours | int }} 時間</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+    </section>
+
+    <!-- 再計算 -->
+    <form method="GET" class="mt-10 text-center fade-in">
+        <button type="submit"
+            class="px-6 py-3 rounded-lg bg-gray-200 font-semibold hover:bg-gray-300">
+            条件を変更して再計算
+        </button>
+    </form>
+
+    <!-- やりたいことリスト -->
+    <section class="mt-10 bg-white p-8 shadow-sm rounded-xl fade-in">
+        <h3 class="text-xl font-bold mb-4">やりたいことリスト</h3>
+
+        <div class="flex gap-3 mb-4">
+            <input id="dreamInput"
+                   class="flex-1 border rounded px-3 py-2"
+                   placeholder="親や大切な人とやりたいこと…" />
+            <button type="button" onclick="addDream()"
+                    class="px-4 py-2 bg-black text-white rounded-lg">
+                追加
+            </button>
+        </div>
+
+        <div id="dreamsList" class="space-y-3"></div>
+    </section>
+
+    {% endif %}
+</div>
+
+<script>
+/* 生年月日生成（1950〜2050、デフォルト2000） */
+const ySel = document.getElementById("year");
+const mSel = document.getElementById("month");
+const dSel = document.getElementById("day");
+
+if (ySel && mSel && dSel) {
+    for (let y = 2050; y >= 1950; y--) {
+        const opt = document.createElement("option");
+        opt.value = String(y);
+        opt.textContent = y + "年";
+        ySel.appendChild(opt);
+    }
+    ySel.value = "2000";
+
+    for (let m = 1; m <= 12; m++) {
+        const v = String(m).padStart(2, "0");
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = m + "月";
+        mSel.appendChild(opt);
+    }
+    mSel.value = "01";
+
+    for (let d = 1; d <= 31; d++) {
+        const v = String(d).padStart(2, "0");
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = d + "日";
+        dSel.appendChild(opt);
+    }
+    dSel.value = "01";
+
+    document.getElementById("simForm").addEventListener("submit", () => {
+        const y = ySel.value;
+        const m = mSel.value;
+        const d = dSel.value;
+        document.getElementById("my_birthdate").value = `${y}-${m}-${d}`;
+    });
+}
+
+/* 大切な人カード追加・削除 */
+const personsContainer = document.getElementById("personsContainer");
+const addPersonBtn = document.getElementById("addPersonBtn");
+
+function createPersonCard(index) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "person-card bg-gray-50 rounded-xl px-4 py-4 person-remove";
+
+    wrapper.innerHTML = `
+        <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-black text-white text-sm font-semibold">
+                    ${index + 1}
+                </span>
+                <span class="text-sm text-gray-600">大切な相手</span>
+            </div>
+            <button type="button" class="text-xs text-gray-500 hover:text-red-500 remove-person-btn">
+                削除
+            </button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="text-sm font-semibold">名前</label>
+                <input type="text" name="relation_name[]" placeholder="例）太郎 / パートナー / 推し"
+                       class="mt-1 border rounded px-3 py-2 w-full" />
+            </div>
+            <div>
+                <label class="text-sm font-semibold">現在の年齢</label>
+                <input type="number" name="relation_age[]" value="10"
+                       class="mt-1 border rounded px-3 py-2 w-full" />
+            </div>
+            <div>
+                <label class="text-sm font-semibold">1日に一緒にいる時間（h）</label>
+                <input type="number" step="0.5" name="relation_daily_hours[]" value="2"
+                       class="mt-1 border rounded px-3 py-2 w-full" />
+            </div>
+            <div>
+                <label class="text-sm font-semibold">一緒に暮らす or 濃く関わるのは何歳まで？</label>
+                <input type="number" name="relation_leave_age[]" value="18"
+                       class="mt-1 border rounded px-3 py-2 w-full" />
+            </div>
+        </div>
+    `;
+    return wrapper;
+}
+
+function renumberPersons() {
+    const cards = personsContainer.querySelectorAll(".person-card");
+    cards.forEach((card, idx) => {
+        const badge = card.querySelector("span.w-7");
+        if (badge) badge.textContent = idx + 1;
+    });
+}
+
+if (addPersonBtn && personsContainer) {
+    addPersonBtn.addEventListener("click", () => {
+        const index = personsContainer.querySelectorAll(".person-card").length;
+        const card = createPersonCard(index);
+        personsContainer.appendChild(card);
+        renumberPersons();
+    });
+
+    personsContainer.addEventListener("click", e => {
+        if (e.target.classList.contains("remove-person-btn")) {
+            const card = e.target.closest(".person-remove");
+            if (card) {
+                card.classList.add("removing");
+                setTimeout(() => {
+                    card.remove();
+                    renumberPersons();
+                }, 180);
+            }
+        }
+    });
+
+    // デフォルトで1人分だけ用意しておく
+    addPersonBtn.click();
+}
+
+/* 数字カウントアップ（結果画面用） */
+document.querySelectorAll(".count").forEach(el => {
+    const value = Number(el.dataset.value || 0);
+    let current = 0;
+    const duration = 1000;
+    const step = value / (duration / 16 || 1);
+
+    setTimeout(() => {
+        el.style.opacity = 1;
+        const interval = setInterval(() => {
+            current += step;
+            if (current >= value) {
+                el.textContent = Math.round(value);
+                clearInterval(interval);
+            } else {
+                el.textContent = Math.floor(current);
+            }
+        }, 16);
+    }, 200);
+});
+
+/* 夢リストAPI */
+async function loadDreams() {
+    const dom = document.getElementById("dreamsList");
+    if (!dom) return;
+
+    const res = await fetch('/api/dreams');
+    const list = await res.json();
+
+    dom.innerHTML = "";
+    list.forEach(d => {
+        const item = document.createElement("div");
+        item.className =
+            "flex justify-between items-center bg-gray-50 px-4 py-3 rounded";
+
+        item.innerHTML = `
+            <span class="text-gray-800">${d.text}</span>
+            <button type="button" onclick="deleteDream(${d.id})"
+                class="text-sm px-3 py-1 rounded bg-gray-200 hover:bg-gray-300">
+                削除
+            </button>`;
+        dom.appendChild(item);
+    });
+}
+
+async function addDream() {
+    const input = document.getElementById("dreamInput");
+    if (!input) return;
+
+    const txt = input.value.trim();
+    if (!txt) return;
+
+    await fetch('/api/dreams', {
+        method: "POST",
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({text: txt})
+    });
+
+    input.value = "";
+    loadDreams();
+}
+
+async function deleteDream(id) {
+    await fetch('/api/dreams', {
+        method: "DELETE",
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({id})
+    });
+    loadDreams();
+}
+
+loadDreams();
+</script>
+
+</body>
+</html>
